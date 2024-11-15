@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: dam_mongodb
+    restart: always
+    ports:
+      - "27011:27011"
+    volumes:
+      - ./mongodb_data:/data/db
+    networks:
+      - dam_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dam_backend
+    restart: always
+    ports:
+      - "5001:5000"  # แก้เป็น 5000 เพราะ Flask รันที่ port 5000 ภายใน container
+    #depends_on:
+     # - mongodb
+    ##environment:
+      #- MONGO_URI=mongodb://mongodb:27017/
+      #- DATABASE_NAME=dam_database
+      #- COLLECTION_NAME=dam_data
+      #- API_URL=https://app.rid.go.th/reservoir/api/dam/public
+      #- UPDATE_INTERVAL=10
+     # - SOCKET_IO_CORS_ORIGINS=http://localhost:3001
+    networks:
+      - dam_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dam_frontend
+    restart: always
+    ports:
+      - "3001:3000"  # แก้เป็น 3000 เพราะ Express รันที่ port 3000 ภายใน container
+    environment:
+      - PORT=3000
+      - BACKEND_URL=http://localhost:5001
+    depends_on:
+      - backend
+    networks:
+      - dam_network
+
+networks:
+  dam_network:
+    driver: bridge
+
+#volumes:
+ # mongodb_data:
+  #  name: water-level-monitor_mongodb_data

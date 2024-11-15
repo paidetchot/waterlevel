@@ -1,0 +1,434 @@
+<!-- views/index.ejs -->
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบติดตามข้อมูลอ่างเก็บน้ำ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.2.0/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        .refresh-animation {
+            animation: refreshBlock 1s ease-out;
+        }
+
+        @keyframes refreshBlock {
+            0% { transform: scale(1); box-shadow: none; }
+            50% { transform: scale(1.02); box-shadow: 0 0 15px rgba(0,123,255,0.5); }
+            100% { transform: scale(1); box-shadow: none; }
+        }
+
+        .last-update {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            font-size: 0.8em;
+        }
+
+        .history-container {
+            display: none;
+            transition: all 0.3s ease;
+        }
+
+        .history-chart {
+            min-height: 300px;
+            margin-bottom: 1rem;
+        }
+
+        .nav-tabs .nav-link.active {
+            font-weight: bold;
+        }
+
+        .table-history {
+            font-size: 0.9rem;
+        }
+
+        .table-history th {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row bg-primary text-white py-4 mb-4">
+            <div class="col">
+                <h1 class="text-center">
+                    <i class="bi bi-water"></i> ระบบติดตามข้อมูลอ่างเก็บน้ำ
+                </h1>
+                <p class="text-center mb-0">แสดงข้อมูลเรียลไทม์จากกรมชลประทาน</p>
+            </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">จำนวนเขื่อนทั้งหมด</h5>
+                        <h2 id="totalDams">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">ปริมาณน้ำรวม (ล้าน ลบ.ม.)</h5>
+                        <h2 id="totalVolume">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">เขื่อนที่น้ำมาก</h5>
+                        <h2 id="highDams">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">เขื่อนที่น้ำน้อย</h5>
+                        <h2 id="lowDams">0</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Buttons -->
+        <div class="row mb-4">
+            <div class="col text-center">
+                <button class="btn btn-primary" onclick="filterDams('all')">ทั้งหมด</button>
+                <button class="btn btn-danger" onclick="filterDams('น้ำมาก')">น้ำมาก</button>
+                <button class="btn btn-warning" onclick="filterDams('น้ำปานกลาง')">น้ำปานกลาง</button>
+                <button class="btn btn-success" onclick="filterDams('น้ำน้อย')">น้ำน้อย</button>
+            </div>
+        </div>
+
+        <!-- Dams Grid -->
+        <div id="damData" class="row"></div>
+    </div>
+
+    <script>
+        const socket = io('http://localhost:5001');
+        let currentFilter = 'all';
+        let damsData = [];
+        let charts = {};
+        
+         // เพิ่มฟังก์ชันสำหรับ refresh แต่ละ block
+         function refreshBlock(damId) {
+            const blockElement = document.querySelector(`[data-dam-id="${damId}"]`);
+            if (blockElement) {
+                // เพิ่ม loading indicator
+                const loadingSpinner = document.createElement('div');
+                loadingSpinner.className = 'position-absolute w-100 h-100 d-flex justify-content-center align-items-center bg-white bg-opacity-75';
+                loadingSpinner.innerHTML = '<div class="spinner-border text-primary"></div>';
+                blockElement.appendChild(loadingSpinner);
+                
+                fetch('http://localhost:5001/api/dams')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.data) {
+                            const damData = data.data.find(d => d.id === damId);
+                            if (damData) {
+                                updateSingleDamBlock(blockElement, damData);
+                            }
+                        }
+                        loadingSpinner.remove();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        loadingSpinner.remove();
+                    });
+            }
+        }
+        // อัพเดทเฉพาะ block ที่ต้องการ
+        function updateSingleDamBlock(blockElement, damData) {
+            // อัพเดทข้อมูลทีละส่วน
+            blockElement.querySelector('.volume').textContent = Number(damData.volume).toLocaleString();
+            blockElement.querySelector('.inflow').textContent = Number(damData.inflow).toLocaleString();
+            blockElement.querySelector('.outflow').textContent = Number(damData.outflow).toLocaleString();
+
+            const progressBar = blockElement.querySelector('.progress-bar');
+            progressBar.style.width = `${damData.percent_storage}%`;
+            progressBar.textContent = `${damData.percent_storage}%`;
+            progressBar.className = `progress-bar ${getProgressBarColor(damData.percent_storage)}`;
+
+            blockElement.querySelector('.update-time').textContent = 
+                new Date(damData.updated_at).toLocaleString('th-TH');
+
+            // เพิ่ม animation
+            blockElement.classList.add('refresh-animation');
+            setTimeout(() => blockElement.classList.remove('refresh-animation'), 1000);
+        }
+
+
+        // Socket Connection
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+        });
+
+        // Initial Data Load
+        fetch('http://localhost:5001/api/dams')
+            .then(response => response.json())
+            .then(data => {
+                if (data.data) {
+                    damsData = data.data;
+                    updateDashboard();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+
+        // Real-time Updates
+        socket.on('dam_data_update', (data) => {
+            damsData = data;
+            updateDashboard();
+        });
+
+        function updateDashboard() {
+            updateStats();
+            updateDamsGrid();
+        }
+
+        function updateStats() {
+            const totalDams = damsData.length;
+            const totalVolume = damsData.reduce((sum, dam) => sum + dam.volume, 0);
+            const highDams = damsData.filter(dam => dam.percent_storage >= 80).length;
+            const lowDams = damsData.filter(dam => dam.percent_storage <= 30).length;
+
+            document.getElementById('totalDams').textContent = totalDams;
+            document.getElementById('totalVolume').textContent = Math.round(totalVolume).toLocaleString();
+            document.getElementById('highDams').textContent = highDams;
+            document.getElementById('lowDams').textContent = lowDams;
+        }
+
+        function updateDamsGrid() {
+    const damDataDiv = document.getElementById('damData');
+    damDataDiv.innerHTML = '';
+
+    const filteredDams = damsData.filter(dam => {
+        if (currentFilter === 'all') return true;
+        return dam.status === currentFilter;
+    });
+
+    filteredDams.forEach(dam => {
+        const card = `
+            <div class="col-md-4 mb-4">
+                <div class="card position-relative" data-dam-id="${dam.id}">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">${dam.name}</h5>
+                            <small>${dam.region}</small>
+                        </div>
+                        <button class="btn btn-sm btn-light" onclick="toggleHistory('${dam.id}')">
+                            <i class="bi bi-clock-history"></i> ข้อมูลย้อนหลัง
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">
+                            <strong>ความจุ:</strong> ${Number(dam.capacity).toLocaleString()} ล้าน ลบ.ม.<br>
+                            <strong>ปริมาณน้ำ:</strong> <span class="volume">${Number(dam.volume).toLocaleString()}</span> ล้าน ลบ.ม.<br>
+                            <strong>น้ำไหลเข้า:</strong> <span class="inflow">${Number(dam.inflow).toLocaleString()}</span> ล้าน ลบ.ม.<br>
+                            <strong>น้ำระบาย:</strong> <span class="outflow">${Number(dam.outflow).toLocaleString()}</span> ล้าน ลบ.ม.
+                        </p>
+                        <div class="progress mb-2">
+                            <div class="progress-bar ${getProgressBarColor(dam.percent_storage)}"
+                                 role="progressbar"
+                                 style="width: ${dam.percent_storage}%"
+                                 aria-valuenow="${dam.percent_storage}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                                ${dam.percent_storage}%
+                            </div>
+                        </div>
+
+                        <!-- เพิ่มส่วนแสดงข้อมูลย้อนหลัง -->
+                        <div class="history-container" id="history-${dam.id}" style="display: none;">
+                            <hr>
+                            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#chart-${dam.id}" type="button">
+                                        กราฟ
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#table-${dam.id}" type="button">
+                                        ตาราง
+                                    </button>
+                                </li>
+                            </ul>
+                            <div class="tab-content mt-3">
+                                <div class="tab-pane fade show active" id="chart-${dam.id}">
+                                    <div class="history-chart">
+                                        <canvas></canvas>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="table-${dam.id}">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered">
+                                            <thead>
+                                                <tr>
+                                                    <th>วันที่</th>
+                                                    <th>ปริมาณน้ำ</th>
+                                                    <th>%</th>
+                                                    <th>น้ำเข้า</th>
+                                                    <th>น้ำออก</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <small class="text-muted update-time">
+                            ${new Date(dam.updated_at).toLocaleString('th-TH')}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        `;
+        damDataDiv.innerHTML += card;
+    });
+}
+async function toggleHistory(damId) {
+    const historyContainer = document.getElementById(`history-${damId}`);
+    const btn = document.querySelector(`[data-dam-id="${damId}"] .btn`);
+    
+    if (historyContainer.style.display === 'none' || !historyContainer.style.display) {
+        // แสดงข้อมูล
+        historyContainer.style.display = 'block';
+        btn.innerHTML = '<i class="bi bi-x-lg"></i> ปิด';
+        await loadHistoricalData(damId);
+    } else {
+        // ซ่อนข้อมูล
+        historyContainer.style.display = 'none';
+        btn.innerHTML = '<i class="bi bi-clock-history"></i> ข้อมูลย้อนหลัง';
+    }
+}
+
+async function loadHistoricalData(damId) {
+    try {
+        const response = await fetch(`http://localhost:5001/api/dams/${damId}/history`);
+        const data = await response.json();
+        
+        if (data.status === 'ok') {
+            updateHistoricalChart(damId, data.data);
+            updateHistoricalTable(damId, data.data);
+        }
+    } catch (error) {
+        console.error('Error loading historical data:', error);
+    }
+}
+
+function updateHistoricalChart(damId, historyData) {
+    const canvasElement = document.querySelector(`#chart-${damId} canvas`);
+    
+    // ทำลายกราฟเดิมถ้ามี
+    if (charts[damId]) {
+        charts[damId].destroy();
+    }
+    
+    const chartData = {
+        labels: historyData.map(d => new Date(d.recorded_at).toLocaleDateString('th-TH')),
+        datasets: [{
+            label: 'ปริมาณน้ำ (ล้าน ลบ.ม.)',
+            data: historyData.map(d => d.volume),
+            borderColor: '#2196f3',
+            tension: 0.3
+        }, {
+            label: 'เปอร์เซ็นต์ความจุ',
+            data: historyData.map(d => d.percent_storage),
+            borderColor: '#4caf50',
+            tension: 0.3,
+            yAxisID: 'percentage'
+        }]
+    };
+
+    charts[damId] = new Chart(canvasElement, {
+        type: 'line',
+        data: chartData,
+        options: {
+            responsive: true,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'ปริมาณน้ำ (ล้าน ลบ.ม.)'
+                    }
+                },
+                percentage: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    min: 0,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'เปอร์เซ็นต์ความจุ (%)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateHistoricalTable(damId, historyData) {
+    const tableBody = document.querySelector(`#table-${damId} tbody`);
+    tableBody.innerHTML = historyData.map(record => `
+        <tr>
+            <td>${new Date(record.recorded_at).toLocaleString('th-TH')}</td>
+            <td>${Number(record.volume).toLocaleString()}</td>
+            <td>${record.percent_storage.toFixed(1)}%</td>
+            <td>${Number(record.inflow).toLocaleString()}</td>
+            <td>${Number(record.outflow).toLocaleString()}</td>
+        </tr>
+    `).join('');
+}
+        
+        setInterval(() => {
+            const blocks = document.querySelectorAll('[data-dam-id]');
+            blocks.forEach(block => {
+                const damId = block.dataset.damId;
+                refreshBlock(damId);
+            });
+
+        // Refresh stats ด้วย
+        fetch('http://localhost:5001/api/dams')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.data) {
+                            updateStats();
+                        }
+                });
+        }, 6000); // 6  วินาที
+
+        function getProgressBarColor(percentage) {
+            if (percentage >= 80) return 'bg-danger';
+            if (percentage >= 50) return 'bg-warning';
+            return 'bg-success';
+        }
+
+        function filterDams(status) {           
+            currentFilter = status;
+            updateDamsGrid();
+        }
+    </script>
+</body>
+</html>

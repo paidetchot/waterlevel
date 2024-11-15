@@ -1,0 +1,110 @@
+.css
+.connection-status {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    z-index: 1000;
+}
+
+.status-connected {
+    background-color: #28a745;
+    color: white;
+}
+
+.status-disconnected {
+    background-color: #dc3545;
+    color: white;
+}
+
+.status-connection-error {
+    background-color: #ffc107;
+    color: black;
+}
+
+.update-animation {
+    animation: highlight 1s ease-out;
+}
+
+@keyframes highlight {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 0 10px rgba(0,123,255,0.5);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.real-time-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #28a745;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    }
+}
+
+#updateNotification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #28a745;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#updateNotification.show {
+    opacity: 1;
+}
+.history-container {
+    margin-top: 1rem;
+    transition: all 0.3s ease;
+}
+
+.history-chart {
+    min-height: 300px;
+    margin-bottom: 1rem;
+}
+
+.nav-tabs .nav-link {
+    cursor: pointer;
+}
+
+.nav-tabs .nav-link.active {
+    font-weight: bold;
+}
+
+.table-responsive {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.table-sm td, .table-sm th {
+    padding: 0.3rem;
+    font-size: 0.9rem;
+}

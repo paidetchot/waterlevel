@@ -1,0 +1,14 @@
+{
+    "name": "water-level-monitor-frontend",
+    "version": "1.0.0",
+    "description": "Water Level Monitoring System Frontend",
+    "main": "server.js",
+    "scripts": {
+      "start": "node server.js"
+    },
+    "dependencies": {
+      "ejs": "^3.1.9",
+      "express": "^4.17.1",
+      "socket.io-client": "^4.2.0"
+    }
+  }
