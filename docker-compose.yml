@@ -6,7 +6,7 @@ services:
     container_name: dam_mongodb
     restart: always
     ports:
-      - "27011:27011"
+      - "27017:27017"
     volumes:
       - ./mongodb_data:/data/db
     networks:
@@ -20,15 +20,10 @@ services:
     restart: always
     ports:
       - "5001:5000"  # แก้เป็น 5000 เพราะ Flask รันที่ port 5000 ภายใน container
-    #depends_on:
-     # - mongodb
-    ##environment:
-      #- MONGO_URI=mongodb://mongodb:27017/
-      #- DATABASE_NAME=dam_database
-      #- COLLECTION_NAME=dam_data
-      #- API_URL=https://app.rid.go.th/reservoir/api/dam/public
-      #- UPDATE_INTERVAL=10
-     # - SOCKET_IO_CORS_ORIGINS=http://localhost:3001
+    depends_on:
+      - mongodb
+    environment:
+      - BACKEND_URL=http://backend:5001
     networks:
       - dam_network
 

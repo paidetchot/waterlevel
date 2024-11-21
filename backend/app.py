@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, jsonify
+from flask import Flask, jsonify , request
 from flask_socketio import SocketIO
 from flask_cors import CORS
 from pymongo import MongoClient
@@ -136,7 +136,7 @@ def fetch_and_store_data():
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
 
-        time.sleep(5)  # รอ 5 วินาที
+        time.sleep(300)  # รอ 5 วินาที
         
 @app.route('/')
 def home():
@@ -196,34 +196,44 @@ from datetime import datetime, timedelta
 
 @app.route('/api/dams/<dam_id>/history')
 def get_dam_history(dam_id):
-    """ดึงข้อมูลย้อนหลังของเขื่อน"""
     try:
-        # ดึงข้อมูลย้อนหลัง 7 วัน
-        seven_days_ago = datetime.now() - timedelta(days=7)
+        # รับค่าวันที่จาก query parameters
+        start_date = request.args.get('start')
+        end_date = request.args.get('end')
+
+        # แปลงวันที่เป็น datetime object
+        start_datetime = datetime.fromisoformat(start_date) if start_date else datetime.now() - timedelta(days=7)
+        end_datetime = datetime.fromisoformat(end_date) if end_date else datetime.now()
+
+        # ค้นหาข้อมูลใน MongoDB
         history = list(historical_collection.find(
             {
-                'dam_id': dam_id,
-                'recorded_at': {'$gte': seven_days_ago}
+                'dam_id': dam_id,  # กรองด้วย dam_id
+                'recorded_at': {
+                    '$gte': start_datetime,  # ช่วงเวลาที่ระบุ
+                    '$lte': end_datetime
+                }
             },
             {
-                '_id': 0,
-                'volume': 1,
-                'percent_storage': 1, 
-                'inflow': 1,
-                'outflow': 1,
+                '_id': 0,  # ไม่แสดง _id
+                'volume': 1,  # ดึงเฉพาะฟิลด์ที่ต้องการ
+                'percent_storage': 1,
                 'recorded_at': 1
             }
-        ).sort('recorded_at', 1))  # เรียงตามเวลา
-        
+        ).sort('recorded_at', 1))  # เรียงลำดับข้อมูลตาม recorded_at
+
+        # ส่งข้อมูลกลับไปยัง frontend
         return jsonify({
             'status': 'ok',
             'data': history
         })
     except Exception as e:
+        # หากเกิดข้อผิดพลาด
         return jsonify({
             'status': 'error',
             'error': str(e)
         }), 500
+
 
 if __name__ == '__main__':
     # เริ่ม thread สำหรับดึงข้อมูล
